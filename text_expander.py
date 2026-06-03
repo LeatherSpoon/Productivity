@@ -3,6 +3,7 @@ import math
 import threading
 from PIL import Image, ImageDraw
 import pystray
+import pyperclip
 from pynput import keyboard
 
 # ---------------------------------------------------------------------------
@@ -110,12 +111,25 @@ def trigger_expansion(shortcut: str, expansion: str):
         time.sleep(0.02)
 
     time.sleep(0.05)      # let backspaces settle
-    controller.type(expansion)
 
-    time.sleep(0.05)      # let the final typed chars land before re-enabling
-    # Discard any expansion characters that looped back through the OS and
-    # arrived at the listener during the sleep above — they must not linger
-    # in the buffer and potentially trigger another expansion.
+    # Paste via clipboard rather than simulating individual keystrokes.
+    # Per-character SendInput is too fast for apps like Notepad that process
+    # raw WM_CHAR messages one at a time — characters get dropped. Pasting
+    # hands the entire string to the app in one shot.
+    try:
+        saved_clip = pyperclip.paste()
+    except Exception:
+        saved_clip = ""
+    pyperclip.copy(expansion)
+    time.sleep(0.02)
+    with controller.pressed(keyboard.Key.ctrl):
+        controller.tap('v')
+    time.sleep(0.1)       # let the paste land before restoring the clipboard
+    try:
+        pyperclip.copy(saved_clip)
+    except Exception:
+        pass
+
     key_buffer.clear()
     expanding.clear()     # listener is open again
 
